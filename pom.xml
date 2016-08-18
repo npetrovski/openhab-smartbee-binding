@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+    <name>openHAB XBee Binding</name>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.openhab.binding</groupId>
+    <artifactId>org.openhab.binding.xbee</artifactId>
+    <version>1.8.3</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <bundle.symbolicName>org.openhab.binding.xbee</bundle.symbolicName>
+        <bundle.namespace>org.openhab.binding.xbee</bundle.namespace>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>openhab-repo</id>
+            <name>openhab-repo</name>
+            <url>http://jcenter.bintray.com/</url>
+        </repository>
+    </repositories>
+    <build>
+        <resources>
+            <resource>
+                <directory>META-INF</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*</include>
+                </includes>
+                <targetPath>META-INF/</targetPath>
+            </resource>
+            <resource>
+                <directory>OSGI-INF</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*</include>
+                </includes>
+                <targetPath>OSGI-INF/</targetPath>
+            </resource>
+            <resource>
+                <directory>lib</directory>
+                <includes>
+                    <include>*.jar</include>
+                </includes>
+                <targetPath>lib/</targetPath>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId> 
+                <configuration>
+                    <archive>
+                        <manifestFile>META-INF/MANIFEST.MF</manifestFile>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.openhab.core</groupId>
+            <artifactId>org.openhab.core</artifactId>
+            <version>1.8.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openhab.core</groupId>
+            <artifactId>org.openhab.core.library</artifactId>
+            <version>1.8.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openhab.model</groupId>
+            <artifactId>org.openhab.model.item</artifactId>
+            <version>1.8.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.core</artifactId>
+            <version>4.3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.osgi</groupId>
+            <artifactId>org.osgi.compendium</artifactId>
+            <version>4.3.1</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.16</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.rapplogic</groupId>
+            <artifactId>xbee-api</artifactId>
+            <version>0.9</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/xbee-api-0.9.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>1.2.8</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/log4j.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>de.congrace</groupId>
+            <artifactId>exp4j</artifactId>
+            <version>0.3.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/exp4j-0.3.10.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.neuronrobotics</groupId>
+            <artifactId>nrjavaserial</artifactId>
+            <version>3.12.0</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/nrjavaserial-3.12.0.jar</systemPath>
+        </dependency>
+    </dependencies>
+
+</project>
