@@ -1,6 +1,6 @@
 # openhab-smartbee-binding
 
-An OpenHAB (v.1.8.3) binding that is defined as a standalone Maven project - it does not require Eclipse IDE and the entire OpenHab code in order to be compiled (for this project I am using NetBeans).
+Yet another OpenHAB (v.1.8.3) binding :-) - it does not require Eclipse IDE and the entire OpenHab code in order to be compiled (for this project I am using NetBeans) - all dependencies are described in the POM file.
 
 The purpose of the project is to provide a basic XBee management module for OpenHAB by using the [digi.com Java library](http://docs.digi.com/display/XBJLIB/XBee+Java+Library).
 
