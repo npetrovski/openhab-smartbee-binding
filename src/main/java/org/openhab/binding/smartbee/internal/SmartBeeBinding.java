@@ -23,12 +23,17 @@ import com.digi.xbee.api.listeners.IDataReceiveListener;
 import com.digi.xbee.api.listeners.IPacketReceiveListener;
 import com.digi.xbee.api.models.XBeeMessage;
 import com.digi.xbee.api.XBeeDevice;
+import com.digi.xbee.api.exceptions.TimeoutException;
 import com.digi.xbee.api.exceptions.XBeeException;
+import com.digi.xbee.api.io.IOLine;
 import com.digi.xbee.api.packet.XBeePacket;
 import com.digi.xbee.api.utils.HexUtils;
 import com.digi.xbee.api.io.IOMode;
+import com.digi.xbee.api.models.XBee64BitAddress;
 
 import org.openhab.core.binding.AbstractActiveBinding;
+import org.openhab.core.library.items.ContactItem;
+import org.openhab.core.library.types.OpenClosedType;
 
 /**
  * SmartBee Binding.
@@ -147,15 +152,20 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
 
         try {
 
-            RemoteXBeeDevice remote = getRemoteDevice(provider, itemName);
-            SmartBeePin pin = provider.getPin(itemName);
+            if (provider.isSensor(itemName)) {
+                return;
+            }
 
-            if (command == OnOffType.ON) {
-                remote.setIOConfiguration(pin.getIOLine(), IOMode.DIGITAL_OUT_HIGH);
+            RemoteXBeeDevice remote = getRemoteDevice(provider, itemName);
+
+            IOLine line = IOLine.getDIO(provider.getPin(itemName).pinNumber);
+
+            if (command == OnOffType.ON || command == OpenClosedType.OPEN) {
+                remote.setIOConfiguration(line, IOMode.DIGITAL_OUT_HIGH);
                 //remote.setDIOValue(pin.getIOLine(), IOValue.HIGH);
 
-            } else if (command == OnOffType.OFF) {
-                remote.setIOConfiguration(pin.getIOLine(), IOMode.DISABLED);
+            } else if (command == OnOffType.OFF || command == OpenClosedType.CLOSED) {
+                remote.setIOConfiguration(line, IOMode.DISABLED);
                 //remote.setDIOValue(pin.getIOLine(), IOValue.LOW);
             }
         } catch (XBeeException e) {
@@ -165,7 +175,7 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
     }
 
     private RemoteXBeeDevice getRemoteDevice(SmartBeeBindingProvider provider, String itemName) {
-        return new RemoteXBeeDevice(xbee, provider.getAddress(itemName));
+        return new RemoteXBeeDevice(xbee, new XBee64BitAddress(provider.getAddress(itemName)));
     }
 
 //    @Override
@@ -344,45 +354,56 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
         }
     }
 
+    private Number applyTransformation(String expr, Number value) {
+        try {
+            return (new ExpressionBuilder(expr))
+                    .variables("x")
+                    .build()
+                    .setVariable("x", value.doubleValue())
+                    .evaluate();
+        } catch (Throwable e) {
+            LOG.error("Transformation error: {}", e);
+        }
+
+        return value;
+    }
+
     private void updateItem(SmartBeeBindingProvider provider, String itemName) {
 
         State newState = null;
 
         try {
             RemoteXBeeDevice remote = getRemoteDevice(provider, itemName);
+            IOLine line = IOLine.getDIO(provider.getPin(itemName).pinNumber);
 
             if (provider.getItemType(itemName).isAssignableFrom(NumberItem.class)) {
-                remote.setIOConfiguration(provider.getPin(itemName).getIOLine(), IOMode.ADC);
-                int pinValue = remote.getADCValue(provider.getPin(itemName).getIOLine());
-                long value = 0;
+                remote.setIOConfiguration(line, IOMode.ADC);
+                Number pinValue = remote.getADCValue(line);
+
                 // Apply the transformation if any
                 if (provider.getTransformation(itemName) != null) {
-                    try {
-                        value = (long) (new ExpressionBuilder(provider.getTransformation(itemName))
-                                .variables("x")
-                                .build()
-                                .setVariable("x", pinValue)
-                                .evaluate());
-                    } catch (Exception e) {
-                        LOG.error("Transformation error: {}", e);
-                    }
-                } else {
-                    value = (long) pinValue;
+                    pinValue = applyTransformation(provider.getTransformation(itemName), (Number) pinValue);
                 }
 
-                newState = new DecimalType(value);
+                newState = new DecimalType(pinValue.longValue());
             } else if (provider.getItemType(itemName).isAssignableFrom(SwitchItem.class)) {
-                IOMode mode = remote.getIOConfiguration(provider.getPin(itemName).getIOLine());
+                IOMode mode = remote.getIOConfiguration(line);
                 if (mode == IOMode.DISABLED) {
                     newState = OnOffType.OFF;
                 } else {
                     newState = OnOffType.ON;
                 }
+            } else if (provider.getItemType(itemName).isAssignableFrom(ContactItem.class)) {
+                IOMode mode = remote.getIOConfiguration(line);
+                if (mode == IOMode.DISABLED) {
+                    newState = OpenClosedType.CLOSED;
+                } else {
+                    newState = OpenClosedType.OPEN;
+                }
             }
 
             eventPublisher.postUpdate(itemName, newState);
-        } catch (Throwable e) {
-            e.printStackTrace();
+        } catch (XBeeException e) {
             LOG.error(e.getMessage());
         }
 

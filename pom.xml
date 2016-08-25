@@ -5,6 +5,7 @@
     <name>openHAB SmartBee Binding</name>
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.openhab.binding</groupId>
+    
     <artifactId>org.openhab.binding.smartbee</artifactId>
     <version>1.8.3</version>
     <packaging>jar</packaging>
@@ -15,7 +16,8 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <slf4j-api.version>1.7.16</slf4j-api.version>
-        <rxtx.native.libs.dir>rxtx-native-libs</rxtx.native.libs.dir>
+        <openhab.version>1.8.3</openhab.version>
+        <osgi.version>4.3.1</osgi.version>
     </properties>
 
     <repositories>
@@ -54,34 +56,6 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>unpack</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>unpack</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>net.objecthunter</groupId>
-                                    <artifactId>exp4j</artifactId>
-                                    <version>0.4.7</version>
-                                    <type>jar</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/classes</outputDirectory>
-                                    <includes>**/*.class,**/*.xml</includes>
-                                    <excludes>**/*test.class</excludes>
-                                </artifactItem>
-                            </artifactItems>
-
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>  
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
@@ -96,28 +70,28 @@
         <dependency>
             <groupId>org.openhab.core</groupId>
             <artifactId>org.openhab.core</artifactId>
-            <version>1.8.3</version>
+            <version>${openhab.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openhab.core</groupId>
             <artifactId>org.openhab.core.library</artifactId>
-            <version>1.8.3</version>
+            <version>${openhab.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openhab.model</groupId>
             <artifactId>org.openhab.model.item</artifactId>
-            <version>1.8.3</version>
+            <version>${openhab.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>org.osgi.core</artifactId>
-            <version>4.3.0</version>
+            <version>${osgi.version}</version>
         </dependency>
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>org.osgi.compendium</artifactId>
-            <version>4.3.1</version>
+            <version>${osgi.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -125,14 +99,8 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j-api.version}</version>
-        </dependency>
-        
-        <dependency>
-            <groupId>net.objecthunter</groupId>
-            <artifactId>exp4j</artifactId>
-            <version>0.4.7</version>
-        </dependency>
-        
+        </dependency>        
+
 
         <dependency>
             <groupId>com.digi.xbee</groupId>
@@ -141,27 +109,19 @@
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/xbjlib-1.1.1.jar</systemPath>
         </dependency>
-        <!--        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/log4j.jar</systemPath>
-            <type>zip</type>
-        </dependency>-->
-        <!--        <dependency>
-            <groupId>net.objecthunter</groupId>
-            <artifactId>exp4j</artifactId>
-            <version>0.4.7</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/exp4j-0.4.7.jar</systemPath>
-        </dependency>-->
         <dependency>
             <groupId>gnu.io</groupId>
             <artifactId>RXTXcomm</artifactId>
             <version>2.2</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/RXTXcomm.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>net.objecthunter</groupId>
+            <artifactId>exp4j</artifactId>
+            <version>0.4.7</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/exp4j-0.4.7.jar</systemPath>
         </dependency>
     </dependencies>
 </project>
