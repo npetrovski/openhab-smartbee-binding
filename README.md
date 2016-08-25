@@ -42,10 +42,10 @@ where parts in brackets indicate an optional item.
  
 An example item definition:
 
-    Switch    Battery_Led  "Led" <switch>  { smartbee=">0013A20040DB628A#D8:" }
+    Switch Battery_Led  "Led"  <switch>  { smartbee=">0013A20040DB628A#D8:" }
     
 or
     
-    Number    Battery_Temperature	"Temperature [%.1f °C]"	 <temperature>	{ xbee="<0013A20040DB628A#A2:((x*3.2258)-500)/10" }
+    Number Battery_Temperature  "Temperature [%.1f °C]"  <temperature>  { smartbee="<0013A20040DB628A#A2:((x*3.2258)-500)/10" }
     
 
