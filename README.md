@@ -38,4 +38,14 @@ where parts in brackets indicate an optional item.
  - "address" stands for 64bit Mac Address of the XBee device.
  - "pinType" defines the type of the pin that will be managed - can be "D" for digital or "A" for analog.
  - "pinNumber" is the number of the XBee pin.
- - "transformation" (optional) is an [exp4j expression](http://www.objecthunter.net/exp4j/) that allows altering the pin value. 
+ - "transformation" (optional) is an [exp4j expression](http://www.objecthunter.net/exp4j/) that allows altering the pin value.
+ 
+An example item definition:
+
+    Switch    Battery_Led  "Led" <switch>  { xbee=">0013A20040DB628A#D8:" }
+    
+or
+    
+    Number    Battery_Temperature	"Temperature [%.1f °C]"	 <temperature>	{ xbee="<0013A20040DB628A#A2:((x*3.2258)-500)/10" }
+    
+
