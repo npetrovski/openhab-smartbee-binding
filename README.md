@@ -21,7 +21,7 @@ Example openhab.cfg entry:
 Note that some controllers register themselves as a modem (/dev/ttyACM) on Linux. In this case it is necessary to add user "openhab" to the group "dialout". Else openHAB won't be able to access the controller.
 </td></tr>
 <tr><td>smartbee:baudRate</td><td>Serial port boud rate.</td></tr>
-<tr><td>smartbee:refresh</td><td>Refresh period (in ms) - the interval for reading the XBee values and populate them to the OpenHAB items.</td></tr>
+<tr><td>smartbee:refresh</td><td>Refresh period (in ms) - the interval for updating the OpenHAB items with the values from the XBee device.</td></tr>
 </table> 
 
 
