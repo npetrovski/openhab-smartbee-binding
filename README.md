@@ -30,7 +30,7 @@ Note that some controllers register themselves as a modem (/dev/ttyACM) on Linux
 In order to bind an item to a XBee device, you need to provide configuration settings. The easiest way to do so is to add some binding information in your item file (in the folder configurations/items`). The syntax for the XBee binding configuration string is explained here:
 The format of the binding configuration is simple and looks like this:
 
-    xbee="<direction><address>#<pinType><pinNumber>[:<transformation>]"
+    smartbee="<direction><address>#<pinType><pinNumber>[:<transformation>]"
 
 where parts in brackets indicate an optional item.
 
