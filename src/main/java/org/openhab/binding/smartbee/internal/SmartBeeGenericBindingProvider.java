@@ -36,7 +36,7 @@ public class SmartBeeGenericBindingProvider extends AbstractGenericBindingProvid
      */
     @Override
     public String getBindingType() {
-        return "xbee";
+        return "smartbee";
     }
 
     /**
