@@ -34,9 +34,9 @@ The format of the binding configuration is simple and looks like this:
 
 where parts in brackets indicate an optional item.
 
- - "direction" indicates whether the Item is a sensor or can be controled from the OpenHAB. Use "<" for sensors (DIRECTION.IN) or ">" for controlable items (DIRECTIO.OUT)
+ - "direction" indicates whether the Item is a sensor or can be controled from the OpenHAB. Use "<" for sensors (DIRECTION.IN) or ">" for controlable items (DIRECTION.OUT)
  - "address" stands for 64bit Mac Address of the XBee device.
- - "pinType" defines the type of the pin that will be managed - can be "D" for digital or "A" for analog.
+ - "pinType" defines the type of the pin that will be managed - can be "D" for digital or "A" for analog IO type.
  - "pinNumber" is the number of the XBee pin.
  - "transformation" (optional) is an [exp4j expression](http://www.objecthunter.net/exp4j/) that allows altering the pin value.
  
