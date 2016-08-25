@@ -1,1 +1,1 @@
-# openhab-xbee-binding
+# openhab-smartbee-binding

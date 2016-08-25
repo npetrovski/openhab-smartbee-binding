@@ -1,33 +1,32 @@
 Manifest-Version: 1.0
-Private-Package: org.openhab.binding.xbee.internal
-Ignore-Package: org.openhab.binding.xbee.internal
-Bundle-License: http://www.gnu.org/licenses/gpl.html
-Bundle-Name: openHAB XBee Binding
-Bundle-SymbolicName: org.openhab.binding.xbee
+Bundle-ManifestVersion: 2
+Bundle-License: http://www.eclipse.org/legal/epl-v10.html
+Bundle-Name: openHAB SmartBee Binding
+Bundle-SymbolicName: org.openhab.binding.smartbee
 Bundle-Vendor: openHAB.org
 Bundle-Version: 1.8.3
-Bundle-Activator: org.openhab.binding.xbee.internal.XBeeActivator
-Bundle-ManifestVersion: 2
-Bundle-Description: This is the xbee binding of the open Home Aut
- omation Bus (openHAB)
-Import-Package: gnu.io,
- org.openhab.binding.xbee,
- org.openhab.core.binding,
+Bundle-DocURL: http://www.openhab.org
+Bundle-Activator: org.openhab.binding.smartbee.internal.SmartBeeActivator
+Bundle-Description: This is the SmartBee binding of OpenHAB
+Import-Package: org.openhab.core.binding,
  org.openhab.core.events,
  org.openhab.core.items,
  org.openhab.core.library.items,
  org.openhab.core.library.types,
+ org.openhab.core.service,
  org.openhab.core.types,
  org.openhab.model.item.binding,
  org.osgi.framework,
  org.osgi.service.cm,
+ org.osgi.service.component,
+ org.osgi.service.event,
  org.slf4j
-Export-Package: org.openhab.binding.xbee
-Bundle-DocURL: http://www.openhab.org
-Service-Component: OSGI-INF/binding.xml, OSGI-INF/genericbindingprovider.xml
-Bundle-ClassPath: .,
- lib/exp4j-0.3.10.jar,
- lib/xbee-api-0.9.jar,
- lib/log4j.jar
+Private-Package: org.openhab.binding.smartbee.internal
+Ignore-Package: org.openhab.binding.smartbee.internal
+Export-Package: org.openhab.binding.smartbee
+Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
+Bundle-ClassPath: .,
+ lib/RXTXcomm.jar,
+ lib/xbjlib-1.1.1.jar
