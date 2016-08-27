@@ -23,7 +23,6 @@ Example openhab.cfg entry:
 Note that some controllers register themselves as a modem (/dev/ttyACM) on Linux. In this case it is necessary to add user "openhab" to the group "dialout". Else openHAB won't be able to access the controller.
 </td></tr>
 <tr><td>smartbee:baudRate</td><td>Serial port boud rate.</td></tr>
-<tr><td>smartbee:refresh</td><td>Refresh period (in ms) - the interval for updating the OpenHAB items with the values from the XBee device.</td></tr>
 <tr><td>smartbee:initDevice</td><td>Initialize a device in the XBee network. The format is {64-bit-address}.{property}.{key} = {value}<br> The supported XBee properties are:<br>  - "pin" - change the initial state of a pin, possible values are "high", "low", "adc", "pwm" and "spec"<br>  - "sample" is for settings up the XBee device sampling. "rate" defines the period for sending a sample message (in ms); and "change" defines the pins which will be monitored for a changed value.</td></tr>
 </table> 
 
