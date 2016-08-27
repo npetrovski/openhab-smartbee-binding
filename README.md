@@ -24,7 +24,7 @@ Note that some controllers register themselves as a modem (/dev/ttyACM) on Linux
 </td></tr>
 <tr><td>smartbee:baudRate</td><td>Serial port boud rate.</td></tr>
 <tr><td>smartbee:refresh</td><td>Refresh period (in ms) - the interval for updating the OpenHAB items with the values from the XBee device.</td></tr>
-<tr><td>smartbee:initDevice</td><td>Initialize a device in the XBee network. The format is {64bit Address}.{property}.{key} = value<br> "property" could be "pin" or "sample" for defining a Pin state of the device or settings for XBee sampling.</td></tr>
+<tr><td>smartbee:initDevice</td><td>Initialize a device in the XBee network. The format is {64-bit-address}.{property}.{key} = {value}<br> The supported XBee properties are:<br>  - "pin" - change the initial state of a pin, possible values are "high", "low", "adc", "pwm" and "spec"<br>  - "sample" is for settings up the XBee device sampling. "rate" defines the period for sending a sample message (in ms); and "change" defines the pins which will be monitored for a changed value.</td></tr>
 </table> 
 
 
@@ -49,6 +49,6 @@ An example item definition:
     
 or
     
-    Number Battery_Temperature  "Temperature [%.1f °C]"  <temperature>  { smartbee="<0013A20040DB628A#A2|((x*3.2258)-500)/10" }
+    Number Battery_Temperature  "Temperature [%.1f Â°C]"  <temperature>  { smartbee="<0013A20040DB628A#A2|((x*3.2258)-500)/10" }
     
 
