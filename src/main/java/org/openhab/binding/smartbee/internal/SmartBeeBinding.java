@@ -1,11 +1,10 @@
 package org.openhab.binding.smartbee.internal;
 
-import org.openhab.binding.smartbee.internal.pin.SmartBeePin;
+import com.digi.xbee.api.AbstractXBeeDevice;
 import org.openhab.binding.smartbee.SmartBeeBindingProvider;
 
 import java.util.Dictionary;
 
-import org.openhab.core.library.items.NumberItem;
 import org.openhab.core.library.items.SwitchItem;
 import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.library.types.OnOffType;
@@ -19,19 +18,28 @@ import org.slf4j.LoggerFactory;
 import net.objecthunter.exp4j.ExpressionBuilder;
 
 import com.digi.xbee.api.RemoteXBeeDevice;
-import com.digi.xbee.api.listeners.IDataReceiveListener;
 import com.digi.xbee.api.listeners.IPacketReceiveListener;
-import com.digi.xbee.api.models.XBeeMessage;
 import com.digi.xbee.api.XBeeDevice;
-import com.digi.xbee.api.exceptions.TimeoutException;
 import com.digi.xbee.api.exceptions.XBeeException;
 import com.digi.xbee.api.io.IOLine;
 import com.digi.xbee.api.packet.XBeePacket;
 import com.digi.xbee.api.utils.HexUtils;
 import com.digi.xbee.api.io.IOMode;
+import com.digi.xbee.api.io.IOSample;
+import com.digi.xbee.api.io.IOValue;
+import com.digi.xbee.api.listeners.IIOSampleReceiveListener;
 import com.digi.xbee.api.models.XBee64BitAddress;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import org.openhab.core.binding.AbstractActiveBinding;
+import org.apache.commons.lang.ArrayUtils;
+import org.openhab.core.binding.AbstractBinding;
 import org.openhab.core.library.items.ContactItem;
 import org.openhab.core.library.types.OpenClosedType;
 
@@ -40,17 +48,26 @@ import org.openhab.core.library.types.OpenClosedType;
  *
  * @author Nikolay Petrovski
  * @since 1.8
+ *
  */
-public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvider> implements ManagedService, IDataReceiveListener, IPacketReceiveListener {
+public class SmartBeeBinding extends AbstractBinding<SmartBeeBindingProvider> implements ManagedService, IPacketReceiveListener, IIOSampleReceiveListener {
 
-    /**
-     * Default refresh interval (currently 30 seconds)
-     */
-    private long refreshInterval = 30000L;
+    private String serialPort;
+
+    private String baudRate;
 
     private static final Logger LOG = LoggerFactory.getLogger(SmartBeeBinding.class);
 
     private XBeeDevice xbee = null;
+
+    private static final Pattern EXTRACT_CONFIG_PATTERN = Pattern.compile("initDevice\\.(?<address>([0-9a-zA-Z])+)\\.(?<prop>(pin|sample))\\.(?<key>.*)");
+
+    /**
+     * Map table to store all available receivers configured by the user
+     */
+    private Map<String, DeviceConfig> deviceConfigCache = null;
+
+    private String coordinatorAddr;
 
     @Override
     public void activate() {
@@ -72,32 +89,156 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
 
             LOG.debug("Disconnecting from the XBee");
 
-            xbee.removeDataListener(this);
+            //xbee.removeDataListener(this);
             xbee.removePacketListener(this);
+            xbee.removeIOSampleListener(this);
 
             xbee.close();
             xbee = null;
         }
     }
 
+    /**
+     * Internal data structure which carries the connection details of one
+     * device (there could be several)
+     */
+    static class DeviceConfig {
+
+        private final String address;
+
+        private int sampleRate = 0;
+
+        private Map<IOLine, IOMode> pins = new HashMap();
+
+        private Set<IOLine> lines = new HashSet();
+
+        public DeviceConfig(String addr) {
+            this.address = addr.toUpperCase();
+        }
+
+        public String getAddress() {
+            return address;
+        }
+
+        public void addPin(Integer num, String state) {
+            IOMode pinstate;
+            if (state.toLowerCase().equals("high")) {
+                pinstate = IOMode.DIGITAL_OUT_HIGH;
+            } else if (state.toLowerCase().equals("low")) {
+                pinstate = IOMode.DIGITAL_OUT_LOW;
+            } else if (state.toLowerCase().equals("din")) {
+                pinstate = IOMode.DIGITAL_IN;
+            } else if (state.toLowerCase().equals("adc")) {
+                pinstate = IOMode.ADC;
+            } else if (state.toLowerCase().equals("pwm")) {
+                pinstate = IOMode.PWM;
+            } else if (state.toLowerCase().equals("spec")) {
+                pinstate = IOMode.SPECIAL_FUNCTIONALITY;
+            } else {
+                return;
+            }
+            pins.put(IOLine.getDIO(num), pinstate);
+        }
+
+        public Map<IOLine, IOMode> getPins() {
+            return pins;
+        }
+
+        public Set<IOLine> getLines() {
+            return lines;
+        }
+
+        public void setLines(String pins) {
+            for (String pin : pins.split(",")) {
+                lines.add(IOLine.getDIO(Integer.valueOf(pin.trim())));
+            }
+        }
+
+        public void setSampleRate(int value) {
+            sampleRate = (int) value;
+        }
+
+        public int getSampleRate() {
+            return sampleRate;
+        }
+
+        public boolean useSampling() {
+            return sampleRate > 0 || lines.size() > 0;
+        }
+    }
+
+    private DeviceConfig getDeviceConfig(String addr) {
+        if (null != deviceConfigCache.get(addr)) {
+            return deviceConfigCache.get(addr);
+        }
+
+        return new DeviceConfig(addr);
+    }
+
     @Override
     public void updated(Dictionary<String, ?> config) throws ConfigurationException {
-        LOG.debug("SmartBee configuration updated");
+        LOG.debug("SmartBee configuration updated.");
 
         if (config != null) {
-            String refreshIntervalString = (String) config.get("refresh");
-            if (!(refreshIntervalString == null || refreshIntervalString.trim().isEmpty())) {
-                refreshInterval = Long.parseLong(refreshIntervalString);
+
+            Enumeration<String> keys = config.keys();
+
+            if (deviceConfigCache == null) {
+                deviceConfigCache = new HashMap<String, DeviceConfig>();
             }
 
-            // Get the configuration
-            String serialPort = (String) config.get("serialPort");
-            String baudRate = (String) config.get("baudRate");
+            while (keys.hasMoreElements()) {
+                String key = (String) keys.nextElement();
+
+                if ("service.pid".equals(key)) {
+                    continue;
+                }
+
+                if ("serialPort".equals(key)) {
+                    // Get the configuration
+                    serialPort = (String) config.get("serialPort");
+                    LOG.info("Update config, serialPort = {}", serialPort);
+
+                    continue;
+                }
+
+                if ("baudRate".equals(key)) {
+                    baudRate = (String) config.get("baudRate");
+                    LOG.info("Update config, baudRate = {}", baudRate);
+
+                    continue;
+                }
+
+                Matcher matcher = EXTRACT_CONFIG_PATTERN.matcher(key);
+
+                if (!matcher.matches()) {
+                    LOG.debug("given config key '{}' does not follow the expected pattern", key);
+                    continue;
+                }
+
+                matcher.reset();
+                while (matcher.find()) {
+                    if (null != matcher.group("address")) {
+                        DeviceConfig deviceConfig = getDeviceConfig(matcher.group("address"));
+                        if (matcher.group("prop").equals("pin") && null != matcher.group("key")) {
+                            deviceConfig.addPin(Integer.valueOf(matcher.group("key")), String.valueOf(config.get(key)));
+                        } else if (matcher.group("prop").equals("sample") && matcher.group("key").equals("change")) {
+                            deviceConfig.setLines(String.valueOf(config.get(key)));
+                        } else if (matcher.group("prop").equals("sample") && matcher.group("key").equals("rate")) {
+                            deviceConfig.setSampleRate(Integer.valueOf(config.get(key).toString()));
+                        }
+
+                        deviceConfigCache.put(matcher.group("address"), deviceConfig);
+                    }
+                }
+
+            }
 
             // Connect to the XBee
-            reconnect(serialPort, baudRate != null ? Integer.parseInt(baudRate) : 9600);
+            connect(serialPort, baudRate != null ? Integer.parseInt(baudRate) : 9600);
 
-            setProperlyConfigured(true);
+            // Initialise devices
+            initialise();
         }
     }
 
@@ -108,7 +249,7 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
      * @param baudRate baud rate to use
      * @throws ConfigurationException
      */
-    public void reconnect(String serialPort, int baudRate) throws ConfigurationException {
+    public void connect(String serialPort, int baudRate) throws ConfigurationException {
 
         LOG.info("Connecting to XBee [serialPort='{}', baudRate={}].", new Object[]{serialPort, baudRate});
 
@@ -122,19 +263,63 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
 
             xbee.open();
 
-            xbee.addDataListener(this);
+            byte[] paramValueSH = xbee.getParameter("SH");
+            byte[] paramValueSL = xbee.getParameter("SL");
+            byte[] addr = ArrayUtils.addAll(paramValueSH, paramValueSL);
+            coordinatorAddr = HexUtils.byteArrayToHexString(addr).toUpperCase();
+
+            LOG.info("Connection successfull. Coordinator XBee [addr='{}']", coordinatorAddr);
+
             xbee.addPacketListener(this);
 
-            byte[] paramValueNI = xbee.getParameter("NI");
-            byte[] paramValueID = xbee.getParameter("ID");
-
-            LOG.info("Connection successfull. Local XBee [nodeId='{}', panId='{}']", new Object[]{new String(paramValueNI), HexUtils.prettyHexString(paramValueID)});
         } catch (XBeeException e) {
+            if (xbee.isOpen()) {
+                xbee.close();
+            }
 
             xbee = null;
             LOG.error("XBee connection failed: {}", e);
             throw new ConfigurationException("serialPort", e.getMessage());
         }
+    }
+
+    public void initialise() {
+
+        if (deviceConfigCache.isEmpty()) {
+            return;
+        }
+
+        for (DeviceConfig devConfig : deviceConfigCache.values()) {
+            try {
+                LOG.debug("Configuring device {}", devConfig.getAddress());
+
+                AbstractXBeeDevice device = getXBeeDevice(devConfig.getAddress());
+                device.enableApplyConfigurationChanges(false);
+                for (Map.Entry<IOLine, IOMode> entry : devConfig.getPins().entrySet()) {
+                    device.setIOConfiguration(entry.getKey(), entry.getValue());
+                }
+
+                device.setIOSamplingRate(devConfig.getSampleRate());
+
+                if (!devConfig.getLines().isEmpty()) {
+                    device.setDIOChangeDetection(devConfig.getLines());
+                }
+
+                if (devConfig.useSampling()) {
+                    if (!devConfig.getAddress().equals(coordinatorAddr)) {
+                        device.setDestinationAddress(new XBee64BitAddress(coordinatorAddr));
+                    }
+
+                    // Register a listener to handle the samples received by the local device.
+                    xbee.addIOSampleListener(this);
+                }
+
+                device.applyChanges();
+            } catch (XBeeException e) {
+                LOG.error(e.getMessage());
+            }
+        }
+
     }
 
     @Override
@@ -143,218 +328,49 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
 
         for (SmartBeeBindingProvider provider : providers) {
             if (provider.providesBindingFor(itemName)) {
-                internalReceiveCommand(provider, itemName, command);
+                try {
+
+                    if (provider.isSensor(itemName)) {
+                        return;
+                    }
+
+                    AbstractXBeeDevice device = getXBeeDevice(provider, itemName);
+
+                    SmartBeePin pin = provider.getPin(itemName);
+
+                    IOLine line = IOLine.getDIO(pin.pinNumber);
+
+                    if (pin.isDigital()) {
+                        if (command == OnOffType.ON || command == OpenClosedType.OPEN) {
+                            device.setDIOValue(line, IOValue.HIGH);
+
+                        } else if (command == OnOffType.OFF || command == OpenClosedType.CLOSED) {
+                            device.setDIOValue(line, IOValue.LOW);
+                        }
+                    }
+
+                } catch (XBeeException e) {
+                    LOG.error(e.getMessage());
+                }
             }
         }
     }
 
-    private void internalReceiveCommand(SmartBeeBindingProvider provider, String itemName, Command command) {
-
-        try {
-
-            if (provider.isSensor(itemName)) {
-                return;
-            }
-
-            RemoteXBeeDevice remote = getRemoteDevice(provider, itemName);
-
-            IOLine line = IOLine.getDIO(provider.getPin(itemName).pinNumber);
-
-            if (command == OnOffType.ON || command == OpenClosedType.OPEN) {
-                remote.setIOConfiguration(line, IOMode.DIGITAL_OUT_HIGH);
-                //remote.setDIOValue(pin.getIOLine(), IOValue.HIGH);
-
-            } else if (command == OnOffType.OFF || command == OpenClosedType.CLOSED) {
-                remote.setIOConfiguration(line, IOMode.DISABLED);
-                //remote.setDIOValue(pin.getIOLine(), IOValue.LOW);
-            }
-        } catch (XBeeException e) {
-            LOG.error(e.getMessage());
+    private AbstractXBeeDevice getXBeeDevice(String addr) {
+        if (addr.equals(coordinatorAddr)) {
+            return xbee;
         }
-
+        return new RemoteXBeeDevice(xbee, new XBee64BitAddress(addr));
     }
 
-    private RemoteXBeeDevice getRemoteDevice(SmartBeeBindingProvider provider, String itemName) {
-        return new RemoteXBeeDevice(xbee, new XBee64BitAddress(provider.getAddress(itemName)));
+    private AbstractXBeeDevice getXBeeDevice(SmartBeeBindingProvider provider, String itemName) {
+        return getXBeeDevice(provider.getAddress(itemName));
     }
 
-//    @Override
-//    public void processResponse(XBeeResponse response) {
-//        // Handle error responses
-//        if (response.isError()) {
-//            LOG.error("Error response received: {}", ((ErrorResponse) response).getErrorMsg());
-//            return;
-//        }
-//
-//        // Handle incoming responses
-//        LOG.debug("Response received: {}", response);
-//        for (XBeeBindingProvider provider : providers) {
-//            for (String itemName : provider.getInBindingItemNames()) {
-//                State newState = null;
-//
-//                // Check the responseType
-//                if (response.getClass() != provider.getResponseType(itemName)) {
-//                    continue;
-//                }
-//
-//                // Depending on the response type
-//                // TODO: Support more
-//                if (response.getClass() == ZNetRxIoSampleResponse.class) { // ZNetRxIoSampleResponse
-//                    ZNetRxIoSampleResponse znetRxIoSampleResponse = (ZNetRxIoSampleResponse) response;
-//
-//                    // Check the address
-//                    if (!znetRxIoSampleResponse.getRemoteAddress64().equals(provider.getAddress(itemName))) {
-//                        continue;
-//                    }
-//
-//                    // Get the data depending on the pin
-//                    if (provider.getPin(itemName).pinType == XBeePinType.DIGITAL) {
-//                        // Check that the digital pin is enabled
-//                        if (!znetRxIoSampleResponse.isDigitalEnabled(provider.getPin(itemName).pinNumber)) {
-//                            LOG.error("Digital pin {} is not enabled", provider.getPin(itemName).pinNumber);
-//                            continue;
-//                        }
-//
-//                        // Get the value
-//                        Boolean isPinOn = znetRxIoSampleResponse.isDigitalOn(provider.getPin(itemName).pinNumber);
-//
-//                        // Cast according to the itemType
-//                        // TODO: Support more
-//                        if (provider.getItemType(itemName).isAssignableFrom(SwitchItem.class)) {
-//                            if (isPinOn) {
-//                                newState = OnOffType.ON;
-//                            } else {
-//                                newState = OnOffType.OFF;
-//                            }
-//                        } else if (provider.getItemType(itemName).isAssignableFrom(ContactItem.class)) {
-//                            if (isPinOn) {
-//                                newState = OpenClosedType.OPEN;
-//                            } else {
-//                                newState = OpenClosedType.CLOSED;
-//                            }
-//                        } else {
-//                            LOG.error("Cannot create state of type {} for value {}", provider.getItemType(itemName),
-//                                    isPinOn);
-//                            continue;
-//                        }
-//                    } else {
-//                        // Check that the analog pin is enabled
-//                        if (!znetRxIoSampleResponse.isAnalogEnabled(provider.getPin(itemName).pinNumber)) {
-//                            LOG.error("Analog pin {} is not enabled", provider.getPin(itemName).pinNumber);
-//                            continue;
-//                        }
-//
-//                        // Get the value
-//                        Double pinValue = (double) znetRxIoSampleResponse
-//                                .getAnalog(provider.getPin(itemName).pinNumber);
-//
-//                        // Apply the transformation if any
-//                        if (provider.getTransformation(itemName) != null) {
-//                            try {
-//                                pinValue = new ExpressionBuilder(provider.getTransformation(itemName))
-//                                        .withVariable("x", pinValue).build().calculate();
-//                            } catch (Exception e) {
-//                                LOG.error("Transformation error: {}", e);
-//                                continue;
-//                            }
-//                        }
-//
-//                        // Cast according to the itemType
-//                        // TODO: Support more
-//                        if (provider.getItemType(itemName).isAssignableFrom(NumberItem.class)) {
-//                            newState = new DecimalType(pinValue);
-//                        } else if (provider.getItemType(itemName).isAssignableFrom(DimmerItem.class)) {
-//                            newState = new PercentType(pinValue.intValue());
-//                        } else {
-//                            LOG.error("Cannot create state of type {} for value {}", provider.getItemType(itemName),
-//                                    pinValue);
-//                            continue;
-//                        }
-//                    }
-//                } else if (response.getClass() == ZNetRxResponse.class) { // ZNetRxResponse
-//                    ZNetRxResponse znetRxResponse = (ZNetRxResponse) response;
-//
-//                    // Check the address
-//                    if (!znetRxResponse.getRemoteAddress64().equals(provider.getAddress(itemName))) {
-//                        continue;
-//                    }
-//
-//                    // Feed the raw data to the buffer
-//                    ByteBuffer buffer = ByteBuffer.allocate(100);
-//                    buffer.order(ByteOrder.BIG_ENDIAN);
-//                    for (int i : znetRxResponse.getData()) {
-//                        buffer.put((byte) i);
-//                    }
-//
-//                    // Check the first byte
-//                    if (provider.getFirstByte(itemName) != null && provider.getFirstByte(itemName) != buffer.get(0)) {
-//                        continue;
-//                    }
-//
-//                    // Cast according to the itemType
-//                    // TODO: Support more
-//                    if (provider.getItemType(itemName).isAssignableFrom(SwitchItem.class)) {
-//                        if (buffer.get(provider.getDataOffset(itemName)) == 1) {
-//                            newState = OnOffType.ON;
-//                        } else {
-//                            newState = OnOffType.OFF;
-//                        }
-//                    } else if (provider.getItemType(itemName).isAssignableFrom(ContactItem.class)) {
-//                        if (buffer.get(provider.getDataOffset(itemName)) == 1) {
-//                            newState = OpenClosedType.OPEN;
-//                        } else {
-//                            newState = OpenClosedType.CLOSED;
-//                        }
-//                    } else if (provider.getItemType(itemName).isAssignableFrom(NumberItem.class)) {
-//                        if (provider.getDataType(itemName) == int.class) {
-//                            newState = new DecimalType(buffer.getInt(provider.getDataOffset(itemName)));
-//                        } else if (provider.getDataType(itemName) == byte.class) {
-//                            newState = new DecimalType(buffer.get(provider.getDataOffset(itemName)));
-//                        } else {
-//                            newState = new DecimalType(buffer.getFloat(provider.getDataOffset(itemName)));
-//                        }
-//                    } else if (provider.getItemType(itemName).isAssignableFrom(DimmerItem.class)) {
-//                        newState = new PercentType(buffer.get(provider.getDataOffset(itemName)));
-//                    } else {
-//                        LOG.debug("Cannot create state of type {} for value {}", provider.getItemType(itemName),
-//                                buffer);
-//                        continue;
-//                    }
-//                } else {
-//                    LOG.debug("Unhandled response type {}", response.getClass().toString().toLowerCase());
-//                    continue;
-//                }
-//
-//                // Publish the new state
-//                eventPublisher.postUpdate(itemName, newState);
-//            }
-//        }
-//    }
-    @Override
-    public void dataReceived(XBeeMessage xbeeMessage) {
-        LOG.debug("dataReceived(). From {} >> {} | {}", xbeeMessage.getDevice().get64BitAddress(),
-                HexUtils.prettyHexString(HexUtils.prettyHexString(xbeeMessage.getData())),
-                new String(xbeeMessage.getData()));
-    }
+    private Number applyValueTransformation(String expr, Number value) {
 
-    @Override
-    public void packetReceived(XBeePacket xbp) {
+        LOG.debug("Apply transformation: {} [{}]", expr, value);
 
-        LOG.debug("packetReceived(). Packet received: {} \n {}", HexUtils.prettyHexString(xbp.getPacketData()), xbp.toPrettyString());
-    }
-
-    @Override
-    protected void execute() {
-        LOG.debug("execute() is called!");
-
-        for (SmartBeeBindingProvider provider : providers) {
-            for (String itemName : provider.getItemNames()) {
-                updateItem(provider, itemName);
-            }
-        }
-    }
-
-    private Number applyTransformation(String expr, Number value) {
         try {
             return (new ExpressionBuilder(expr))
                     .variables("x")
@@ -368,63 +384,61 @@ public class SmartBeeBinding extends AbstractActiveBinding<SmartBeeBindingProvid
         return value;
     }
 
-    private void updateItem(SmartBeeBindingProvider provider, String itemName) {
+    @Override
+    public void ioSampleReceived(RemoteXBeeDevice remoteDevice, IOSample ioSample) {
 
-        State newState = null;
+        HashMap<IOLine, Integer> aV = ioSample.getAnalogValues();
+        HashMap<IOLine, IOValue> dV = ioSample.getDigitalValues();
 
-        try {
-            RemoteXBeeDevice remote = getRemoteDevice(provider, itemName);
-            IOLine line = IOLine.getDIO(provider.getPin(itemName).pinNumber);
+        for (SmartBeeBindingProvider provider : providers) {
+            Collection<String> items = provider.getItemsByAddress(remoteDevice.get64BitAddress().toString().toUpperCase());
 
-            if (provider.getItemType(itemName).isAssignableFrom(NumberItem.class)) {
-                remote.setIOConfiguration(line, IOMode.ADC);
-                Number pinValue = remote.getADCValue(line);
+            for (String itemName : items) {
 
-                // Apply the transformation if any
-                if (provider.getTransformation(itemName) != null) {
-                    pinValue = applyTransformation(provider.getTransformation(itemName), (Number) pinValue);
-                }
+                State newState = null;
 
-                newState = new DecimalType(pinValue.longValue());
-            } else if (provider.getItemType(itemName).isAssignableFrom(SwitchItem.class)) {
-                IOMode mode = remote.getIOConfiguration(line);
-                if (mode == IOMode.DISABLED) {
-                    newState = OnOffType.OFF;
-                } else {
-                    newState = OnOffType.ON;
-                }
-            } else if (provider.getItemType(itemName).isAssignableFrom(ContactItem.class)) {
-                IOMode mode = remote.getIOConfiguration(line);
-                if (mode == IOMode.DISABLED) {
-                    newState = OpenClosedType.CLOSED;
-                } else {
-                    newState = OpenClosedType.OPEN;
+                SmartBeePin pin = provider.getPin(itemName);
+                IOLine line = IOLine.getDIO(pin.pinNumber);
+
+                if (pin.isAnalog() && null != aV.get(line)) {
+
+                    Number pinValue = aV.get(line);
+                    // Apply the transformation if any
+                    if (provider.getTransformation(itemName) != null) {
+                        pinValue = applyValueTransformation(provider.getTransformation(itemName), (Number) pinValue);
+                    }
+
+                    newState = new DecimalType(pinValue.longValue());
+
+                    eventPublisher.postUpdate(itemName, newState);
+
+                } else if (pin.isDigital() && null != dV.get(line)) {
+                    IOValue pinValue = dV.get(line);
+
+                    if (provider.getItemType(itemName).isAssignableFrom(SwitchItem.class)) {
+                        if (pinValue == IOValue.LOW) {
+                            newState = OnOffType.OFF;
+                        } else {
+                            newState = OnOffType.ON;
+                        }
+                    } else if (provider.getItemType(itemName).isAssignableFrom(ContactItem.class)) {
+                        if (pinValue == IOValue.LOW) {
+                            newState = OpenClosedType.CLOSED;
+                        } else {
+                            newState = OpenClosedType.OPEN;
+                        }
+                    }
+
+                    eventPublisher.postUpdate(itemName, newState);
                 }
             }
-
-            eventPublisher.postUpdate(itemName, newState);
-        } catch (XBeeException e) {
-            LOG.error(e.getMessage());
         }
-
     }
 
     @Override
-    protected long getRefreshInterval() {
-        return refreshInterval;
-    }
+    public void packetReceived(XBeePacket xbp) {
 
-    @Override
-    protected String getName() {
-        return "SmartBee bundle";
-    }
-
-    protected void addBindingProvider(SmartBeeBindingProvider bindingProvider) {
-        super.addBindingProvider(bindingProvider);
-    }
-
-    protected void removeBindingProvider(SmartBeeBindingProvider bindingProvider) {
-        super.removeBindingProvider(bindingProvider);
+        LOG.debug("packetReceived(). Packet received: {} \n {}", HexUtils.prettyHexString(xbp.getPacketData()), xbp.toPrettyString());
     }
 
 }

@@ -1,10 +1,12 @@
 package org.openhab.binding.smartbee.internal;
 
-import java.util.List;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.openhab.binding.smartbee.SmartBeeBindingConfig;
 
-import org.openhab.binding.smartbee.internal.pin.SmartBeePin;
 import org.openhab.core.binding.BindingConfig;
 import org.openhab.core.items.Item;
 import org.openhab.model.item.binding.AbstractGenericBindingProvider;
@@ -14,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.openhab.binding.smartbee.SmartBeeBindingProvider;
-import org.openhab.core.types.State;
 
 /**
  * This class is responsible for parsing the binding configuration.
@@ -27,7 +28,7 @@ public class SmartBeeGenericBindingProvider extends AbstractGenericBindingProvid
 
 
     private static final Pattern CONFIG_PATTERN = Pattern
-            .compile("(?<direction>[\\<\\>]{1})(?<address>([0-9a-zA-Z])+)#(?<pin>[AD][0-9]{1,2})(:(?<transformation>.*))?");
+            .compile("(?<direction>[\\<\\>]{1})(?<address>([0-9a-zA-Z])+)#(?<pin>[AD][0-9]{1,2})(\\|(?<transformation>.*))?");
 
     private static final Logger LOG = LoggerFactory.getLogger(SmartBeeGenericBindingProvider.class);
 
@@ -46,7 +47,7 @@ public class SmartBeeGenericBindingProvider extends AbstractGenericBindingProvid
     public void validateItemType(Item item, String bindingConfig) throws BindingConfigParseException {
         // Accept all sort of items
     }
-
+    
     /**
      * {@inheritDoc}
      */
@@ -60,12 +61,13 @@ public class SmartBeeGenericBindingProvider extends AbstractGenericBindingProvid
         if (CONFIG_PATTERN.matcher(bindingConfig).matches()) {
             Matcher matcher = CONFIG_PATTERN.matcher(bindingConfig);
             while (matcher.find()) {
+
                 SmartBeeBindingConfig config = new SmartBeeBindingConfig();
                 config.itemType = item.getClass();
                 config.direction = matcher.group("direction").equals("<")
                         ? SmartBeeBindingConfig.DIRECTION.IN
                         : SmartBeeBindingConfig.DIRECTION.OUT;
-                config.address = matcher.group("address");
+                config.address = matcher.group("address").toUpperCase();
                 config.pin = new SmartBeePin(matcher.group("pin"));
                 config.transformation = matcher.group("transformation");
                 config.types = item.getAcceptedDataTypes();
@@ -78,10 +80,26 @@ public class SmartBeeGenericBindingProvider extends AbstractGenericBindingProvid
         }
 
         LOG.debug("Adding binding config for item {}", item.getName());
+
+    }
+
+    public Map<String, BindingConfig> getBindingConfig() {
+        return bindingConfigs;
     }
 
     private SmartBeeBindingConfig getBinding(final String itemName) {
         return (SmartBeeBindingConfig) bindingConfigs.get(itemName);
+    }
+
+    public Collection<String> getItemsByAddress(final String addr) {
+        Collection<String> bindings = new ArrayList<>();
+        for (Map.Entry<String, BindingConfig> entry : bindingConfigs.entrySet()) {
+            if (((SmartBeeBindingConfig) entry.getValue()).address.equals(addr)) {
+                bindings.add(entry.getKey());
+            }
+        }
+
+        return bindings;
     }
 
     @Override
@@ -104,40 +122,10 @@ public class SmartBeeGenericBindingProvider extends AbstractGenericBindingProvid
         return getBinding(itemName).direction == SmartBeeBindingConfig.DIRECTION.IN;
     }
 
-    @Override
-    public List<Class<? extends State>> getAvailableItemTypes(String itemName) {
-        return getBinding(itemName).types;
-    }
 
     @Override
     public Class<? extends Item> getItemType(String itemName) {
         return getBinding(itemName).itemType;
     }
 
-    static class SmartBeeBindingConfig implements BindingConfig {
-
-        enum DIRECTION {
-
-            /**
-             * binding for sensors
-             */
-            IN,
-            /**
-             * binding for actors
-             */
-            OUT
-        };
-
-        DIRECTION direction;
-
-        String address;
-
-        SmartBeePin pin;
-
-        String transformation;
-
-        List<Class<? extends State>> types;
-        
-        Class<? extends Item> itemType;
-    }
 }

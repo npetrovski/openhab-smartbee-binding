@@ -12,9 +12,11 @@ Example openhab.cfg entry:
     #
     smartbee:serialPort=/dev/ttyAMA0
     smartbee:baudRate=9600
-    smartbee:refresh=30000
-    
-    
+    smartbee:initDevice.0013A20040DB628A.pin.4=LOW
+    smartbee:initDevice.0013A20040DB628A.pin.1=ADC
+    smartbee:initDevice.0013A20040DB628A.sample.rate=20000
+    smartbee:initDevice.0013A20040DB628A.sample.change=1,8
+
 <table>
 <tr><td>Option</td><td>Description</td></tr>
 <tr><td>smartbee:serialPort</td><td>value indicates the serial port on the host system to which the XBee controller is connected, e.g. "COM1" on Windows, "/dev/ttyS0" or "/dev/ttyUSB0" on Linux or "/dev/tty.PL2303-0000103D" on Mac.<br>
@@ -22,6 +24,7 @@ Note that some controllers register themselves as a modem (/dev/ttyACM) on Linux
 </td></tr>
 <tr><td>smartbee:baudRate</td><td>Serial port boud rate.</td></tr>
 <tr><td>smartbee:refresh</td><td>Refresh period (in ms) - the interval for updating the OpenHAB items with the values from the XBee device.</td></tr>
+<tr><td>smartbee:initDevice</td><td>Initialize a device in the XBee network. The format is {64bit Address}.{property}.{key} = value<br> "property" could be "pin" or "sample" for defining a Pin state of the device or settings for XBee sampling.</td></tr>
 </table> 
 
 
@@ -30,7 +33,7 @@ Note that some controllers register themselves as a modem (/dev/ttyACM) on Linux
 In order to bind an item to a XBee device, you need to provide configuration settings. The easiest way to do so is to add some binding information in your item file (in the folder configurations/items`). The syntax for the XBee binding configuration string is explained here:
 The format of the binding configuration is simple and looks like this:
 
-    smartbee="<direction><address>#<pinType><pinNumber>[:<transformation>]"
+    smartbee="<direction><address>#<pinType><pinNumber>[|<transformation>]"
 
 where parts in brackets indicate an optional item.
 
@@ -46,6 +49,6 @@ An example item definition:
     
 or
     
-    Number Battery_Temperature  "Temperature [%.1f Â°C]"  <temperature>  { smartbee="<0013A20040DB628A#A2:((x*3.2258)-500)/10" }
+    Number Battery_Temperature  "Temperature [%.1f °C]"  <temperature>  { smartbee="<0013A20040DB628A#A2|((x*3.2258)-500)/10" }
     
 

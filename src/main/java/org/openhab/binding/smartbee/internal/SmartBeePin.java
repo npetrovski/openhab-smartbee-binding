@@ -1,4 +1,4 @@
-package org.openhab.binding.smartbee.internal.pin;
+package org.openhab.binding.smartbee.internal;
 
 public class SmartBeePin {
 
@@ -21,6 +21,14 @@ public class SmartBeePin {
         }
         pinNumber = Integer.parseInt(pin.substring(1));
 
+    }
+    
+    public boolean isAnalog() {
+        return pinType == PinType.ANALOG;
+    }
+    
+    public boolean isDigital() {
+        return pinType == PinType.DIGITAL;
     }
 
     @Override
