@@ -54,7 +54,7 @@ public class SmartBeeBinding extends AbstractBinding<SmartBeeBindingProvider> im
 
     private String serialPort;
 
-    private String baudRate;
+    private int baudRate = 9600;
 
     private static final Logger LOG = LoggerFactory.getLogger(SmartBeeBinding.class);
 
@@ -198,12 +198,15 @@ public class SmartBeeBinding extends AbstractBinding<SmartBeeBindingProvider> im
                     // Get the configuration
                     serialPort = (String) config.get("serialPort");
                     LOG.info("Update config, serialPort = {}", serialPort);
-
+                    
+                    if ((System.getProperty("os.name").toLowerCase().contains("linux"))) {
+                        System.setProperty("gnu.io.rxtx.SerialPorts", serialPort);
+                    }
                     continue;
                 }
 
                 if ("baudRate".equals(key)) {
-                    baudRate = (String) config.get("baudRate");
+                    baudRate = (Integer) config.get("baudRate");
                     LOG.info("Update config, baudRate = {}", baudRate);
 
                     continue;
@@ -234,11 +237,11 @@ public class SmartBeeBinding extends AbstractBinding<SmartBeeBindingProvider> im
 
             }
 
-            // Connect to the XBee
-            connect(serialPort, baudRate != null ? Integer.parseInt(baudRate) : 9600);
+            // Connect to the local XBee
+            connect(serialPort, baudRate);
 
             // Initialise devices
-            initialise();
+            initializeDevices();
         }
     }
 
@@ -283,7 +286,10 @@ public class SmartBeeBinding extends AbstractBinding<SmartBeeBindingProvider> im
         }
     }
 
-    public void initialise() {
+    /**
+     * Initialize XBee device
+     */
+    public void initializeDevices() {
 
         if (deviceConfigCache.isEmpty()) {
             return;
