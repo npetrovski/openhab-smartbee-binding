@@ -206,8 +206,8 @@ public class SmartBeeBinding extends AbstractBinding<SmartBeeBindingProvider> im
                 }
 
                 if ("baudRate".equals(key)) {
-                    baudRate = (Integer) config.get("baudRate");
-                    LOG.info("Update config, baudRate = {}", baudRate);
+                    baudRate = Integer.parseInt(String.valueOf(config.get("baudRate")));
+                    LOG.info("Update config, baudRate = {}", String.valueOf(baudRate));
 
                     continue;
                 }
